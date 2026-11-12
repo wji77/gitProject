@@ -447,7 +447,18 @@ class SoccerGame:
         self.last_timer_tick = pygame.time.get_ticks()
         self.particles.clear()
         self.winner = ""
+        self.goal_anim_timer = 0
+        self.goal_scorer = ""
         self.state = "PLAYING"
+
+    def go_to_selection(self):
+        self.winner = ""
+        self.goal_anim_timer = 0
+        self.goal_scorer = ""
+        self.score_player = 0
+        self.score_ai = 0
+        self.particles.clear()
+        self.state = "SELECT_TEAM"
 
     def handle_selection_events(self, event):
         if event.type == pygame.KEYDOWN:
@@ -480,7 +491,7 @@ class SoccerGame:
             # 난이도 버튼 클릭 감지
             diff_w, diff_h = 170, 36
             diff_start_x = (WIDTH - (3 * diff_w + 2 * 16)) // 2
-            diff_y = 82
+            diff_y = 60
             for d in range(3):
                 dx = diff_start_x + d * (diff_w + 16)
                 if pygame.Rect(dx, diff_y, diff_w, diff_h).collidepoint(mx, my):
@@ -743,21 +754,61 @@ class SoccerGame:
 
         elif self.state == "GAME_OVER":
             overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 180))
+            overlay.fill((0, 0, 0, 185))
             self.screen.blit(overlay, (0, 0))
 
             win_txt = self.font_large.render(self.winner, True, COLOR_YELLOW)
-            self.screen.blit(win_txt, win_txt.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 50)))
+            self.screen.blit(win_txt, win_txt.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 85)))
 
             score_txt = self.font_medium.render(
                 f"최종 스코어  {self.player_team['name']} {self.score_player} : {self.score_ai} {self.ai_team['name']}",
                 True,
                 COLOR_TEXT,
             )
-            self.screen.blit(score_txt, score_txt.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 10)))
+            self.screen.blit(score_txt, score_txt.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 30)))
 
-            guide_end = self.font_medium.render("다시 시작: [R]  |  국가/난이도 다시 선택: [T]  |  종료: [ESC]", True, (255, 255, 255))
-            self.screen.blit(guide_end, guide_end.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 70)))
+            # 클릭 가능한 대형 버튼 3종 렌더링
+            mx, my = pygame.mouse.get_pos()
+
+            # 버튼 1: 바로 다시 시작 (R / Enter / Space)
+            btn_restart = pygame.Rect(WIDTH // 2 - 240, HEIGHT // 2 + 15, 225, 52)
+            hov_1 = btn_restart.collidepoint(mx, my)
+            pygame.draw.rect(self.screen, (40, 140, 75) if hov_1 else (28, 95, 52), btn_restart, border_radius=10)
+            pygame.draw.rect(self.screen, COLOR_YELLOW if hov_1 else (100, 220, 140), btn_restart, 3 if hov_1 else 1, border_radius=10)
+            b1_txt = self.font_medium.render("🔄 다시 시작 [R]", True, (255, 255, 255))
+            self.screen.blit(b1_txt, b1_txt.get_rect(center=btn_restart.center))
+
+            # 버튼 2: 팀/난이도 선택 (T)
+            btn_team = pygame.Rect(WIDTH // 2 + 15, HEIGHT // 2 + 15, 225, 52)
+            hov_2 = btn_team.collidepoint(mx, my)
+            pygame.draw.rect(self.screen, (45, 95, 145) if hov_2 else (28, 68, 108), btn_team, border_radius=10)
+            pygame.draw.rect(self.screen, COLOR_YELLOW if hov_2 else (100, 175, 240), btn_team, 3 if hov_2 else 1, border_radius=10)
+            b2_txt = self.font_medium.render("🏳️ 팀/난이도 선택 [T]", True, (255, 255, 255))
+            self.screen.blit(b2_txt, b2_txt.get_rect(center=btn_team.center))
+
+            # 버튼 3: 게임 종료 (ESC)
+            btn_exit = pygame.Rect(WIDTH // 2 - 85, HEIGHT // 2 + 82, 170, 36)
+            hov_3 = btn_exit.collidepoint(mx, my)
+            pygame.draw.rect(self.screen, (85, 35, 35) if hov_3 else (55, 25, 25), btn_exit, border_radius=8)
+            pygame.draw.rect(self.screen, (230, 100, 100), btn_exit, 2 if hov_3 else 1, border_radius=8)
+            b3_txt = self.font_small.render("🚪 게임 종료 [ESC]", True, (240, 240, 240))
+            self.screen.blit(b3_txt, b3_txt.get_rect(center=btn_exit.center))
+
+    def handle_game_over_click(self, pos):
+        mx, my = pos
+        btn_restart = pygame.Rect(WIDTH // 2 - 240, HEIGHT // 2 + 15, 225, 52)
+        btn_team = pygame.Rect(WIDTH // 2 + 15, HEIGHT // 2 + 15, 225, 52)
+        btn_exit = pygame.Rect(WIDTH // 2 - 85, HEIGHT // 2 + 82, 170, 36)
+
+        if btn_restart.collidepoint(mx, my):
+            self.setup_match()
+            return True
+        elif btn_team.collidepoint(mx, my):
+            self.go_to_selection()
+            return True
+        elif btn_exit.collidepoint(mx, my):
+            return "EXIT"
+        return False
 
     def run(self):
         running = True
@@ -767,19 +818,37 @@ class SoccerGame:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+
                 elif self.state == "SELECT_TEAM":
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                         running = False
                     else:
                         self.handle_selection_events(event)
+
+                elif self.state == "GAME_OVER":
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        res = self.handle_game_over_click(event.pos)
+                        if res == "EXIT":
+                            running = False
+                    elif event.type == pygame.KEYDOWN:
+                        u = getattr(event, "unicode", "").lower()
+                        if event.key in (pygame.K_r, pygame.K_RETURN, pygame.K_SPACE) or u in ("r", "ㄱ"):
+                            self.setup_match()
+                        elif event.key == pygame.K_t or u in ("t", "ㅅ"):
+                            self.go_to_selection()
+                        elif event.key == pygame.K_ESCAPE:
+                            running = False
+
                 else:
+                    # PLAYING 또는 GOAL 상태
                     if event.type == pygame.KEYDOWN:
+                        u = getattr(event, "unicode", "").lower()
                         if event.key == pygame.K_ESCAPE:
                             running = False
-                        elif event.key == pygame.K_r:
+                        elif event.key == pygame.K_r or u in ("r", "ㄱ"):
                             self.setup_match()
-                        elif event.key == pygame.K_t:
-                            self.state = "SELECT_TEAM"
+                        elif event.key == pygame.K_t or u in ("t", "ㅅ"):
+                            self.go_to_selection()
 
             if self.state == "SELECT_TEAM":
                 self.draw_selection_screen()
