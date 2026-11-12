@@ -1,5 +1,8 @@
 {
     "recommendations": [
-        "saoudrizwan.claude-dev"
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "charliermarsh.ruff"
     ]
 }
