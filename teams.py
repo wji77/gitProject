@@ -284,3 +284,32 @@ TEAMS_DATA = [
     },
 ]
 
+
+DIFFICULTIES = [
+    {
+        "id": "EASY",
+        "name": "쉬움 (Easy)",
+        "desc": "초보자용: AI 이동 속도가 느리고 수비가 느슨합니다.",
+        "ai_speed": 3.6,
+        "ai_shot_power": 11.0,
+        "color": (46, 204, 113),
+    },
+    {
+        "id": "NORMAL",
+        "name": "보통 (Normal)",
+        "desc": "표준 모드: 균형 잡힌 AI 속도와 유기적인 수비 및 슈팅",
+        "ai_speed": 4.2,
+        "ai_shot_power": 13.5,
+        "color": (241, 196, 15),
+    },
+    {
+        "id": "HARD",
+        "name": "어려움 (Hard)",
+        "desc": "프로 모드: 강력한 압박과 정밀하고 빠른 코너 슈팅",
+        "ai_speed": 4.8,
+        "ai_shot_power": 15.5,
+        "color": (231, 76, 60),
+    },
+]
+
+

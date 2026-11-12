@@ -1,6 +1,7 @@
 """
-2022 카타르 월드컵 16강전 2D 미니 축구 게임
-- 16강 진출 국가 선택 및 국기 표시
+2022 카타르 월드컵 3 vs 3 미니 축구 게임
+- 16강 진출 국가 및 AI 난이도(쉬움/보통/어려움) 선택
+- 총 6명 경기: 아군 3명(플레이어 + AI 동료 2명) vs 상대팀 AI 3명
 - 실제 사람 형태의 선수 그래픽 (헤어, 유니폼, 축구화, 러닝 애니메이션)
 """
 
@@ -8,9 +9,9 @@ import math
 import random
 import sys
 import pygame
-from teams import TEAMS_DATA, create_flag_surface
+from teams import DIFFICULTIES, TEAMS_DATA, create_flag_surface
 
-WIDTH, HEIGHT = 920, 620
+WIDTH, HEIGHT = 940, 640
 FPS = 60
 
 COLOR_PITCH_1 = (46, 139, 87)
@@ -23,10 +24,10 @@ COLOR_YELLOW = (255, 215, 0)
 
 PITCH_LEFT = 50
 PITCH_RIGHT = WIDTH - 50
-PITCH_TOP = 60
+PITCH_TOP = 65
 PITCH_BOTTOM = HEIGHT - 50
 GOAL_TOP = 230
-GOAL_BOTTOM = 390
+GOAL_BOTTOM = 410
 GOAL_DEPTH = 35
 
 MAX_GOALS = 5
@@ -123,20 +124,38 @@ class Ball:
 
 
 class Player:
-    def __init__(self, x, y, team: dict, is_ai: bool = False):
+    def __init__(self, x, y, team: dict, role: str, is_user: bool, is_home: bool, difficulty: dict):
         self.start_x = x
         self.start_y = y
-        self.radius = 20
+        self.radius = 19
         self.team = team
-        self.is_ai = is_ai
-        self.speed = 4.3 if is_ai else 4.7
+        self.role = role  # "GK", "MF", "FW"
+        self.is_user = is_user
+        self.is_home = is_home  # True: 왼쪽 진영(아군), False: 오른쪽 진영(상대)
+        self.difficulty = difficulty
+
+        # 역할 및 난이도별 속도
+        base_speed = difficulty["ai_speed"] if not is_user else 4.7
+        if role == "GK":
+            self.speed = base_speed * 0.95
+        elif role == "MF":
+            self.speed = base_speed * 0.98
+        else:
+            self.speed = base_speed * 1.05
+
+        self.shot_power = difficulty["ai_shot_power"] if not is_user else 15.0
+
+        self.target_goal_x = PITCH_RIGHT if is_home else PITCH_LEFT
+        self.home_goal_x = PITCH_LEFT if is_home else PITCH_RIGHT
+        self.label = "YOU" if is_user else (f"아군-{role}" if is_home else f"AI-{role}")
+
         self.shoot_cooldown = 0
-        self.facing_angle = 0.0 if not is_ai else math.pi
+        self.facing_angle = 0.0 if is_home else math.pi
         self.run_cycle = 0.0
         self.is_moving = False
         self.kick_anim = 0
 
-        self.mini_flag = create_flag_surface(team["code"], 20, 14)
+        self.mini_flag = create_flag_surface(team["code"], 18, 12)
         self.reset()
 
     def reset(self):
@@ -144,10 +163,10 @@ class Player:
         self.y = float(self.start_y)
         self.vx = 0.0
         self.vy = 0.0
-        self.facing_angle = 0.0 if not self.is_ai else math.pi
+        self.facing_angle = 0.0 if self.is_home else math.pi
         self.kick_anim = 0
 
-    def update_human(self, keys, ball):
+    def update_user(self, keys, ball):
         dx, dy = 0, 0
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:
             dx -= 1
@@ -177,13 +196,12 @@ class Player:
         elif keys[pygame.K_SPACE]:
             dist = math.hypot(ball.x - self.x, ball.y - self.y)
             if dist < self.radius + ball.radius + 18:
-                target_x = PITCH_RIGHT
                 target_y = (GOAL_TOP + GOAL_BOTTOM) / 2
-                angle = math.atan2(target_y - ball.y, target_x - ball.x)
+                angle = math.atan2(target_y - ball.y, self.target_goal_x - ball.x)
                 angle += random.uniform(-0.10, 0.10)
-                ball.vx = math.cos(angle) * 14.5
-                ball.vy = math.sin(angle) * 14.5
-                self.shoot_cooldown = 25
+                ball.vx = math.cos(angle) * self.shot_power
+                ball.vy = math.sin(angle) * self.shot_power
+                self.shoot_cooldown = 22
                 self.kick_anim = 12
                 self.facing_angle = angle
 
@@ -191,12 +209,46 @@ class Player:
             self.kick_anim -= 1
 
     def update_ai(self, ball):
-        if ball.x < WIDTH * 0.46:
-            target_x = WIDTH * 0.76
-            target_y = (GOAL_TOP + GOAL_BOTTOM) / 2 + (ball.y - HEIGHT / 2) * 0.4
-        else:
-            target_x = ball.x + (12 if ball.x < self.x else 28)
-            target_y = ball.y
+        target_x = self.x
+        target_y = self.y
+        goal_mid_y = (GOAL_TOP + GOAL_BOTTOM) / 2
+
+        if self.role == "GK":
+            # 골키퍼 AI: 골문 앞 사수 및 근접 볼 걷어내기
+            base_x = PITCH_LEFT + 28 if self.is_home else PITCH_RIGHT - 28
+            in_danger_zone = (ball.x < PITCH_LEFT + 150) if self.is_home else (ball.x > PITCH_RIGHT - 150)
+
+            if in_danger_zone and (GOAL_TOP - 20 <= ball.y <= GOAL_BOTTOM + 20):
+                target_x = ball.x
+                target_y = ball.y
+            else:
+                target_x = base_x
+                target_y = max(GOAL_TOP + 10, min(GOAL_BOTTOM - 10, ball.y))
+
+        elif self.role == "MF":
+            # 미드필더 AI: 공수 밸런스 유지 및 중원 압박
+            if self.is_home:
+                if ball.x < WIDTH * 0.45:
+                    target_x = ball.x + (10 if ball.x < self.x else 25)
+                    target_y = ball.y
+                else:
+                    target_x = WIDTH * 0.40 + (ball.x - WIDTH * 0.5) * 0.3
+                    target_y = goal_mid_y + (ball.y - goal_mid_y) * 0.5
+            else:
+                if ball.x > WIDTH * 0.55:
+                    target_x = ball.x - (10 if ball.x > self.x else 25)
+                    target_y = ball.y
+                else:
+                    target_x = WIDTH * 0.60 + (ball.x - WIDTH * 0.5) * 0.3
+                    target_y = goal_mid_y + (ball.y - goal_mid_y) * 0.5
+
+        else:  # "FW" 공격수 AI
+            if self.is_home:
+                target_x = ball.x + (10 if ball.x < self.x else 22)
+                target_y = ball.y
+            else:
+                target_x = ball.x - (10 if ball.x > self.x else 22)
+                target_y = ball.y
 
         dx = target_x - self.x
         dy = target_y - self.y
@@ -215,11 +267,15 @@ class Player:
 
         self.x += self.vx
         self.y += self.vy
-        self.clamp_position(WIDTH * 0.4, PITCH_RIGHT - self.radius)
 
-        dist_to_ball = math.hypot(ball.x - self.x, ball.y - self.y)
-        if dist_to_ball < self.radius + ball.radius + 4:
-            self.kick_anim = 8
+        # 역할별 위치 제한
+        if self.role == "GK":
+            if self.is_home:
+                self.clamp_position(PITCH_LEFT + self.radius, PITCH_LEFT + 150)
+            else:
+                self.clamp_position(PITCH_RIGHT - 150, PITCH_RIGHT - self.radius)
+        else:
+            self.clamp_position(PITCH_LEFT + self.radius, PITCH_RIGHT - self.radius)
 
         if self.kick_anim > 0:
             self.kick_anim -= 1
@@ -240,9 +296,20 @@ class Player:
             ny = dy / dist
             ball.x += nx * overlap
             ball.y += ny * overlap
-            push_power = 6.2
-            ball.vx = nx * push_power + self.vx * 1.3
-            ball.vy = ny * push_power + self.vy * 1.3
+
+            if not self.is_user:
+                # AI 선수 슈팅/클리어 판단
+                target_y = (GOAL_TOP + GOAL_BOTTOM) / 2
+                angle = math.atan2(target_y - ball.y, self.target_goal_x - ball.x)
+                angle += random.uniform(-0.15, 0.15)
+                power = self.shot_power if (self.role in ("FW", "GK")) else self.shot_power * 0.85
+                ball.vx = math.cos(angle) * power
+                ball.vy = math.sin(angle) * power
+            else:
+                push_power = 6.2
+                ball.vx = nx * push_power + self.vx * 1.3
+                ball.vy = ny * push_power + self.vy * 1.3
+
             self.kick_anim = 8
 
     def draw(self, surface):
@@ -253,10 +320,14 @@ class Player:
         perp_cos = -sin_a
         perp_sin = cos_a
 
-        # 그림자
+        # 1. 그림자
         pygame.draw.ellipse(surface, (20, 20, 20), (px - 15, py + 8, 30, 12))
 
-        # 다리 & 축구화 (달릴 때 교차하는 다리 애니메이션)
+        # 2. 플레이어(YOU) 강조 표시 링
+        if self.is_user:
+            pygame.draw.circle(surface, COLOR_YELLOW, (px, py), self.radius + 4, 2)
+
+        # 3. 다리 & 축구화
         leg_swing = math.sin(self.run_cycle) * 7.0 if self.is_moving else 0.0
         if self.kick_anim > 0:
             leg_swing = 10.0
@@ -270,7 +341,7 @@ class Player:
             pygame.draw.circle(surface, (25, 25, 25), (boot_x, boot_y), 3)
             pygame.draw.circle(surface, (230, 230, 230), (boot_x, boot_y), 1)
 
-        # 양팔 & 손
+        # 4. 양팔 & 손
         arm_swing = -leg_swing * 0.7
         for side, swing in [(-1, arm_swing), (1, -arm_swing)]:
             ax = px + perp_cos * (side * 12) + cos_a * swing
@@ -280,11 +351,11 @@ class Player:
             hy = int(ay + sin_a * 4)
             pygame.draw.circle(surface, self.team["skin"], (hx, hy), 3)
 
-        # 몸통 (국가대표 유니폼 저지)
+        # 5. 몸통 (국가대표 유니폼 저지)
         pygame.draw.ellipse(surface, self.team["color"], (px - 11, py - 9, 22, 18))
         pygame.draw.circle(surface, self.team["accent"], (px, py - 2), 4, 1)
 
-        # 머리 & 얼굴 (피부톤 + 헤어스타일)
+        # 6. 머리 & 얼굴
         hx = int(px + cos_a * 2)
         hy = int(py + sin_a * 2 - 3)
         pygame.draw.circle(surface, self.team["skin"], (hx, hy), 9)
@@ -295,14 +366,13 @@ class Player:
         eye_y = int(hy + sin_a * 5)
         pygame.draw.circle(surface, (20, 20, 20), (eye_x, eye_y), 1)
 
-        # 머리 위 국기 및 이름 뱃지
-        flag_y = py - 36
-        surface.blit(self.mini_flag, (px - 10, flag_y))
+        # 7. 머리 위 뱃지 및 라벨
+        flag_y = py - 34
+        surface.blit(self.mini_flag, (px - 9, flag_y))
         font = pygame.font.SysFont("arial", 10, bold=True)
-        lbl_txt = "YOU" if not self.is_ai else "AI"
-        txt_s = font.render(lbl_txt, True, (255, 255, 255))
+        lbl_color = COLOR_YELLOW if self.is_user else (240, 240, 240)
+        txt_s = font.render(self.label, True, lbl_color)
         surface.blit(txt_s, txt_s.get_rect(center=(px, flag_y - 6)))
-
 
 
 class SoccerGame:
@@ -310,31 +380,35 @@ class SoccerGame:
         pygame.init()
         pygame.font.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("⚽ 2022 월드컵 16강 미니 축구 게임")
+        pygame.display.set_caption("⚽ 2022 월드컵 3 vs 3 미니 축구 게임")
         self.clock = pygame.time.Clock()
 
-        self.font_title = pygame.font.SysFont("malgungothic,segoeui,arial", 34, bold=True)
-        self.font_large = pygame.font.SysFont("malgungothic,segoeui,arial", 42, bold=True)
-        self.font_medium = pygame.font.SysFont("malgungothic,segoeui,arial", 22, bold=True)
-        self.font_small = pygame.font.SysFont("malgungothic,segoeui,arial", 14)
-        self.font_card = pygame.font.SysFont("malgungothic,segoeui,arial", 15, bold=True)
+        self.font_title = pygame.font.SysFont("malgungothic,segoeui,arial", 30, bold=True)
+        self.font_large = pygame.font.SysFont("malgungothic,segoeui,arial", 40, bold=True)
+        self.font_medium = pygame.font.SysFont("malgungothic,segoeui,arial", 20, bold=True)
+        self.font_small = pygame.font.SysFont("malgungothic,segoeui,arial", 13)
+        self.font_card = pygame.font.SysFont("malgungothic,segoeui,arial", 14, bold=True)
 
+        # 팀 국기 캐싱
         self.team_flags = {}
         for t in TEAMS_DATA:
             self.team_flags[t["code"]] = {
                 "large": create_flag_surface(t["code"], 64, 42),
-                "medium": create_flag_surface(t["code"], 48, 32),
-                "small": create_flag_surface(t["code"], 26, 18),
+                "medium": create_flag_surface(t["code"], 44, 29),
+                "small": create_flag_surface(t["code"], 24, 16),
             }
 
         self.selected_index = 0
-        self.state = "SELECT_TEAM"
+        self.diff_index = 1  # 0: 쉬움, 1: 보통, 2: 어려움 (기본값: 보통)
+        self.state = "SELECT_TEAM"  # 'SELECT_TEAM', 'PLAYING', 'GOAL', 'GAME_OVER'
 
         self.player_team = TEAMS_DATA[0]
         self.ai_team = TEAMS_DATA[1]
+        self.current_diff = DIFFICULTIES[1]
+
         self.ball = None
-        self.player = None
-        self.ai = None
+        self.players = []
+        self.user_player = None
 
         self.score_player = 0
         self.score_ai = 0
@@ -347,12 +421,25 @@ class SoccerGame:
 
     def setup_match(self):
         self.player_team = TEAMS_DATA[self.selected_index]
+        self.current_diff = DIFFICULTIES[self.diff_index]
+
         available_ai = [t for i, t in enumerate(TEAMS_DATA) if i != self.selected_index]
         self.ai_team = random.choice(available_ai)
 
         self.ball = Ball(WIDTH // 2, HEIGHT // 2)
-        self.player = Player(WIDTH * 0.25, HEIGHT // 2, self.player_team, is_ai=False)
-        self.ai = Player(WIDTH * 0.75, HEIGHT // 2, self.ai_team, is_ai=True)
+
+        # 아군 3명 구성 (GK, MF, 플레이어 FW)
+        home_gk = Player(PITCH_LEFT + 35, HEIGHT // 2, self.player_team, "GK", is_user=False, is_home=True, difficulty=self.current_diff)
+        home_mf = Player(WIDTH * 0.28, HEIGHT // 2 - 80, self.player_team, "MF", is_user=False, is_home=True, difficulty=self.current_diff)
+        home_user = Player(WIDTH * 0.38, HEIGHT // 2 + 50, self.player_team, "FW", is_user=True, is_home=True, difficulty=self.current_diff)
+        self.user_player = home_user
+
+        # 상대 AI 3명 구성 (GK, MF, FW)
+        away_gk = Player(PITCH_RIGHT - 35, HEIGHT // 2, self.ai_team, "GK", is_user=False, is_home=False, difficulty=self.current_diff)
+        away_mf = Player(WIDTH * 0.72, HEIGHT // 2 + 80, self.ai_team, "MF", is_user=False, is_home=False, difficulty=self.current_diff)
+        away_fw = Player(WIDTH * 0.62, HEIGHT // 2 - 50, self.ai_team, "FW", is_user=False, is_home=False, difficulty=self.current_diff)
+
+        self.players = [home_gk, home_mf, home_user, away_gk, away_mf, away_fw]
 
         self.score_player = 0
         self.score_ai = 0
@@ -364,7 +451,15 @@ class SoccerGame:
 
     def handle_selection_events(self, event):
         if event.type == pygame.KEYDOWN:
-            if event.key in (pygame.K_LEFT, pygame.K_a):
+            if event.key in (pygame.K_1, pygame.K_KP1):
+                self.diff_index = 0
+            elif event.key in (pygame.K_2, pygame.K_KP2):
+                self.diff_index = 1
+            elif event.key in (pygame.K_3, pygame.K_KP3):
+                self.diff_index = 2
+            elif event.key == pygame.K_TAB:
+                self.diff_index = (self.diff_index + 1) % 3
+            elif event.key in (pygame.K_LEFT, pygame.K_a):
                 if self.selected_index % 4 > 0:
                     self.selected_index -= 1
             elif event.key in (pygame.K_RIGHT, pygame.K_d):
@@ -378,12 +473,25 @@ class SoccerGame:
                     self.selected_index += 4
             elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                 self.setup_match()
+
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mx, my = event.pos
-            card_w, card_h = 190, 95
-            gap_x, gap_y = 20, 16
+
+            # 난이도 버튼 클릭 감지
+            diff_w, diff_h = 170, 36
+            diff_start_x = (WIDTH - (3 * diff_w + 2 * 16)) // 2
+            diff_y = 82
+            for d in range(3):
+                dx = diff_start_x + d * (diff_w + 16)
+                if pygame.Rect(dx, diff_y, diff_w, diff_h).collidepoint(mx, my):
+                    self.diff_index = d
+                    return
+
+            # 팀 카드 클릭 감지
+            card_w, card_h = 190, 88
+            gap_x, gap_y = 20, 14
             start_x = (WIDTH - (4 * card_w + 3 * gap_x)) // 2
-            start_y = 120
+            start_y = 158
             for i in range(len(TEAMS_DATA)):
                 col = i % 4
                 row = i // 4
@@ -395,18 +503,42 @@ class SoccerGame:
                     break
 
     def draw_selection_screen(self):
-        self.screen.fill((20, 32, 45))
-        pygame.draw.rect(self.screen, (28, 48, 68), (0, 0, WIDTH, 95))
+        self.screen.fill((18, 28, 40))
+        pygame.draw.rect(self.screen, (26, 42, 60), (0, 0, WIDTH, 142))
 
-        title = self.font_title.render("🏆 2022 카타르 월드컵 16강 국가 선택 🏆", True, COLOR_YELLOW)
-        self.screen.blit(title, title.get_rect(center=(WIDTH // 2, 40)))
-        sub = self.font_small.render("원하는 국가대표팀을 선택하세요 (방향키 이동 / 마우스 클릭 후 [ENTER])", True, (210, 225, 240))
-        self.screen.blit(sub, sub.get_rect(center=(WIDTH // 2, 75)))
+        # 메인 타이틀
+        title = self.font_title.render("🏆 2022 월드컵 3 vs 3 축구: 국가 및 난이도 선택 🏆", True, COLOR_YELLOW)
+        self.screen.blit(title, title.get_rect(center=(WIDTH // 2, 28)))
 
-        card_w, card_h = 190, 95
-        gap_x, gap_y = 20, 16
+        # 1. 난이도 선택 바
+        diff_w, diff_h = 170, 36
+        diff_start_x = (WIDTH - (3 * diff_w + 2 * 16)) // 2
+        diff_y = 60
+
+        for d, diff in enumerate(DIFFICULTIES):
+            dx = diff_start_x + d * (diff_w + 16)
+            d_rect = pygame.Rect(dx, diff_y, diff_w, diff_h)
+            is_active = (d == self.diff_index)
+
+            bg_c = (42, 70, 95) if is_active else (25, 36, 50)
+            pygame.draw.rect(self.screen, bg_c, d_rect, border_radius=6)
+            bdr_c = diff["color"] if is_active else (60, 75, 95)
+            pygame.draw.rect(self.screen, bdr_c, d_rect, 3 if is_active else 1, border_radius=6)
+
+            txt_c = (255, 255, 255) if is_active else (180, 190, 205)
+            d_txt = self.font_medium.render(f"[{d+1}] {diff['name']}", True, txt_c)
+            self.screen.blit(d_txt, d_txt.get_rect(center=d_rect.center))
+
+        # 선택된 난이도 설명 문구
+        active_diff = DIFFICULTIES[self.diff_index]
+        desc_txt = self.font_small.render(f"💡 {active_diff['desc']}  (키보드 1 / 2 / 3 또는 클릭)", True, active_diff["color"])
+        self.screen.blit(desc_txt, desc_txt.get_rect(center=(WIDTH // 2, 118)))
+
+        # 2. 16개국 카드 그리드 (4x4)
+        card_w, card_h = 190, 88
+        gap_x, gap_y = 20, 14
         start_x = (WIDTH - (4 * card_w + 3 * gap_x)) // 2
-        start_y = 115
+        start_y = 158
 
         for i, team in enumerate(TEAMS_DATA):
             col = i % 4
@@ -416,55 +548,56 @@ class SoccerGame:
             rect = pygame.Rect(x, y, card_w, card_h)
             is_selected = (i == self.selected_index)
 
-            bg_color = (45, 75, 105) if is_selected else (28, 44, 60)
+            bg_color = (40, 68, 96) if is_selected else (24, 38, 52)
             pygame.draw.rect(self.screen, bg_color, rect, border_radius=8)
 
-            border_color = COLOR_YELLOW if is_selected else (60, 85, 115)
+            border_color = COLOR_YELLOW if is_selected else (50, 72, 95)
             border_width = 3 if is_selected else 1
             pygame.draw.rect(self.screen, border_color, rect, border_width, border_radius=8)
 
             flag = self.team_flags[team["code"]]["medium"]
-            self.screen.blit(flag, (x + 12, y + 16))
+            self.screen.blit(flag, (x + 10, y + 14))
 
             name_txt = self.font_card.render(team["name"], True, (255, 255, 255) if is_selected else (220, 220, 220))
-            self.screen.blit(name_txt, (x + 68, y + 16))
-            en_txt = self.font_small.render(team["name_en"], True, (180, 200, 220))
-            self.screen.blit(en_txt, (x + 68, y + 38))
+            self.screen.blit(name_txt, (x + 62, y + 14))
+            en_txt = self.font_small.render(team["name_en"], True, (170, 190, 210))
+            self.screen.blit(en_txt, (x + 62, y + 34))
 
-            pygame.draw.circle(self.screen, team["color"], (x + 75, y + 68), 7)
-            pygame.draw.circle(self.screen, team["secondary"], (x + 95, y + 68), 7)
-            code_lbl = self.font_small.render(team["code"], True, (160, 175, 195))
-            self.screen.blit(code_lbl, (x + 115, y + 60))
+            pygame.draw.circle(self.screen, team["color"], (x + 70, y + 64), 7)
+            pygame.draw.circle(self.screen, team["secondary"], (x + 90, y + 64), 7)
+            code_lbl = self.font_small.render(team["code"], True, (150, 165, 185))
+            self.screen.blit(code_lbl, (x + 108, y + 56))
 
-        guide = self.font_medium.render("선택 후 [ENTER] 또는 [SPACE]를 눌러 경기 시작!", True, COLOR_YELLOW)
-        self.screen.blit(guide, guide.get_rect(center=(WIDTH // 2, HEIGHT - 25)))
+        # 하단 가이드 문구
+        guide = self.font_medium.render("국가 선택 후 [ENTER] 또는 [SPACE]를 눌러 3 vs 3 매치 시작!", True, COLOR_YELLOW)
+        self.screen.blit(guide, guide.get_rect(center=(WIDTH // 2, HEIGHT - 22)))
 
     def reset_positions(self):
         self.ball.reset(WIDTH // 2, HEIGHT // 2)
-        self.player.reset()
-        self.ai.reset()
+        for p in self.players:
+            p.reset()
 
     def check_goal(self):
         if self.ball.x > PITCH_RIGHT and GOAL_TOP <= self.ball.y <= GOAL_BOTTOM:
             self.score_player += 1
-            self.trigger_goal(f"{self.player_team['name']} (YOU)")
+            self.trigger_goal(f"{self.player_team['name']} (아군)")
         elif self.ball.x < PITCH_LEFT and GOAL_TOP <= self.ball.y <= GOAL_BOTTOM:
             self.score_ai += 1
-            self.trigger_goal(f"{self.ai_team['name']} (AI)")
+            self.trigger_goal(f"{self.ai_team['name']} (상대)")
 
     def trigger_goal(self, scorer):
         self.state = "GOAL"
         self.goal_scorer = scorer
         self.goal_anim_timer = 100
-        team = self.player_team if "YOU" in scorer else self.ai_team
+        team = self.player_team if "아군" in scorer else self.ai_team
         for _ in range(70):
             self.particles.append(Particle(self.ball.x, self.ball.y, team["color"]))
             self.particles.append(Particle(self.ball.x, self.ball.y, COLOR_YELLOW))
 
         if self.score_player >= MAX_GOALS:
-            self.winner = f"🏆 {self.player_team['name']} (YOU) WIN! 🏆"
+            self.winner = f"🏆 {self.player_team['name']} (아군 승리!) 🏆"
         elif self.score_ai >= MAX_GOALS:
-            self.winner = f"🏆 {self.ai_team['name']} (AI) WIN! 🏆"
+            self.winner = f"🏆 {self.ai_team['name']} (상대 승리) 🏆"
 
     def update(self):
         for p in self.particles[:]:
@@ -493,36 +626,49 @@ class SoccerGame:
             if self.time_left <= 0:
                 self.time_left = 0
                 if self.score_player > self.score_ai:
-                    self.winner = f"🏆 {self.player_team['name']} (YOU) WIN! 🏆"
+                    self.winner = f"🏆 {self.player_team['name']} (아군 승리!) 🏆"
                 elif self.score_ai > self.score_player:
-                    self.winner = f"🏆 {self.ai_team['name']} (AI) WIN! 🏆"
+                    self.winner = f"🏆 {self.ai_team['name']} (상대 승리) 🏆"
                 else:
                     self.winner = "🤝 DRAW MATCH (무승부)! 🤝"
                 self.state = "GAME_OVER"
                 return
 
         keys = pygame.key.get_pressed()
-        self.player.update_human(keys, self.ball)
-        self.ai.update_ai(self.ball)
-        self.player.collide_with_ball(self.ball)
-        self.ai.collide_with_ball(self.ball)
-        self.collide_players()
+
+        # 선수들 이동 업데이트
+        for p in self.players:
+            if p.is_user:
+                p.update_user(keys, self.ball)
+            else:
+                p.update_ai(self.ball)
+            p.collide_with_ball(self.ball)
+
+        # 6명 선수 간 충돌 판정
+        self.collide_all_players()
+
+        # 공 이동 및 골 체크
         self.ball.update()
         self.check_goal()
 
-    def collide_players(self):
-        dx = self.ai.x - self.player.x
-        dy = self.ai.y - self.player.y
-        dist = math.hypot(dx, dy)
-        min_dist = self.player.radius + self.ai.radius
-        if 0 < dist < min_dist:
-            overlap = (min_dist - dist) / 2
-            nx = dx / dist
-            ny = dy / dist
-            self.player.x -= nx * overlap
-            self.player.y -= ny * overlap
-            self.ai.x += nx * overlap
-            self.ai.y += ny * overlap
+    def collide_all_players(self):
+        n = len(self.players)
+        for i in range(n):
+            for j in range(i + 1, n):
+                p1 = self.players[i]
+                p2 = self.players[j]
+                dx = p2.x - p1.x
+                dy = p2.y - p1.y
+                dist = math.hypot(dx, dy)
+                min_dist = p1.radius + p2.radius
+                if 0 < dist < min_dist:
+                    overlap = (min_dist - dist) / 2
+                    nx = dx / dist
+                    ny = dy / dist
+                    p1.x -= nx * overlap
+                    p1.y -= ny * overlap
+                    p2.x += nx * overlap
+                    p2.y += ny * overlap
 
     def draw_pitch(self):
         stripe_width = 70
@@ -534,12 +680,13 @@ class SoccerGame:
         pygame.draw.rect(self.screen, (24, 60, 40), (0, 0, WIDTH, HEIGHT), PITCH_TOP)
         pygame.draw.rect(self.screen, COLOR_LINE, (PITCH_LEFT, PITCH_TOP, PITCH_RIGHT - PITCH_LEFT, PITCH_BOTTOM - PITCH_TOP), 3)
 
-        mid_x, mid_y = WIDTH // 2, (PITCH_TOP + PITCH_BOTTOM) // 2
+        mid_x = WIDTH // 2
+        mid_y = (PITCH_TOP + PITCH_BOTTOM) // 2
         pygame.draw.line(self.screen, COLOR_LINE, (mid_x, PITCH_TOP), (mid_x, PITCH_BOTTOM), 2)
         pygame.draw.circle(self.screen, COLOR_LINE, (mid_x, mid_y), 70, 2)
         pygame.draw.circle(self.screen, COLOR_LINE, (mid_x, mid_y), 5)
 
-        box_w, box_h = 100, 220
+        box_w, box_h = 110, 240
         box_top = (HEIGHT - box_h) // 2
         pygame.draw.rect(self.screen, COLOR_LINE, (PITCH_LEFT, box_top, box_w, box_h), 2)
         pygame.draw.rect(self.screen, COLOR_LINE, (PITCH_RIGHT - box_w, box_top, box_w, box_h), 2)
@@ -548,36 +695,39 @@ class SoccerGame:
         pygame.draw.rect(self.screen, (100, 100, 100), (PITCH_LEFT - GOAL_DEPTH, GOAL_TOP, GOAL_DEPTH, GOAL_BOTTOM - GOAL_TOP), 2)
         pygame.draw.rect(self.screen, (220, 220, 220), (PITCH_RIGHT, GOAL_TOP, GOAL_DEPTH, GOAL_BOTTOM - GOAL_TOP))
         pygame.draw.rect(self.screen, (100, 100, 100), (PITCH_RIGHT, GOAL_TOP, GOAL_DEPTH, GOAL_BOTTOM - GOAL_TOP), 2)
+
     def draw_hud(self):
-        # 상단 스코어보드 바
-        pygame.draw.rect(self.screen, (20, 30, 42), (0, 0, WIDTH, PITCH_TOP))
+        pygame.draw.rect(self.screen, (18, 28, 40), (0, 0, WIDTH, PITCH_TOP))
 
-        # 플레이어 (왼쪽)
+        # 아군 (왼쪽)
         flag_p = self.team_flags[self.player_team["code"]]["medium"]
-        self.screen.blit(flag_p, (PITCH_LEFT, 14))
-        p_name = self.font_medium.render(f"{self.player_team['name']} (YOU)", True, (255, 255, 255))
-        self.screen.blit(p_name, (PITCH_LEFT + 56, 17))
+        self.screen.blit(flag_p, (PITCH_LEFT, 16))
+        p_name = self.font_medium.render(f"{self.player_team['name']} (아군 3명)", True, (255, 255, 255))
+        self.screen.blit(p_name, (PITCH_LEFT + 52, 19))
 
-        # 스코어
+        # 중앙 스코어보드 & 타이머 & 난이도 표시
         mid_x = WIDTH // 2
         score_txt = self.font_large.render(f"{self.score_player}  :  {self.score_ai}", True, COLOR_YELLOW)
         self.screen.blit(score_txt, score_txt.get_rect(center=(mid_x, 28)))
 
-        # AI 상대 (오른쪽)
+        diff_badge = self.font_small.render(f"난이도: {self.current_diff['name'].split()[0]}", True, self.current_diff["color"])
+        self.screen.blit(diff_badge, diff_badge.get_rect(center=(mid_x, 50)))
+
+        # 상대 AI (오른쪽)
         flag_ai = self.team_flags[self.ai_team["code"]]["medium"]
-        ai_name = self.font_medium.render(f"{self.ai_team['name']} (AI)", True, (255, 255, 255))
-        self.screen.blit(ai_name, (WIDTH - PITCH_LEFT - 56 - ai_name.get_width(), 17))
-        self.screen.blit(flag_ai, (WIDTH - PITCH_LEFT - 48, 14))
+        ai_name = self.font_medium.render(f"(상대 3명) {self.ai_team['name']}", True, (255, 255, 255))
+        self.screen.blit(ai_name, (WIDTH - PITCH_LEFT - 52 - ai_name.get_width(), 19))
+        self.screen.blit(flag_ai, (WIDTH - PITCH_LEFT - 44, 16))
 
         # 타이머
         mins, secs = self.time_left // 60, self.time_left % 60
         timer_txt = self.font_medium.render(f"⏱ {mins:02d}:{secs:02d}", True, (240, 240, 240))
-        self.screen.blit(timer_txt, (mid_x + 95, 17))
+        self.screen.blit(timer_txt, (mid_x + 95, 18))
 
-        # 하단 조작 가이드
-        guide = "조작: 이동 [방향키 / WASD]  |  슈팅 [스페이스바]  |  팀 다시선택 [T]  |  재시작 [R]  |  종료 [ESC]"
+        # 하단 가이드 문구
+        guide = "조작: 이동 [방향키 / WASD]  |  슈팅 [스페이스바]  |  난이도/팀 다시선택 [T]  |  재시작 [R]  |  종료 [ESC]"
         guide_txt = self.font_small.render(guide, True, (230, 230, 230))
-        self.screen.blit(guide_txt, guide_txt.get_rect(center=(WIDTH // 2, HEIGHT - 22)))
+        self.screen.blit(guide_txt, guide_txt.get_rect(center=(WIDTH // 2, HEIGHT - 20)))
 
     def draw_overlays(self):
         if self.state == "GOAL":
@@ -606,7 +756,7 @@ class SoccerGame:
             )
             self.screen.blit(score_txt, score_txt.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 10)))
 
-            guide_end = self.font_medium.render("다시 시작: [R]  |  다른 국가 선택: [T]  |  종료: [ESC]", True, (255, 255, 255))
+            guide_end = self.font_medium.render("다시 시작: [R]  |  국가/난이도 다시 선택: [T]  |  종료: [ESC]", True, (255, 255, 255))
             self.screen.blit(guide_end, guide_end.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 70)))
 
     def run(self):
@@ -636,10 +786,15 @@ class SoccerGame:
             else:
                 self.update()
                 self.draw_pitch()
-                self.player.draw(self.screen)
-                self.ai.draw(self.screen)
+
+                # 공 그리기
                 self.ball.draw(self.screen)
 
+                # 6명 선수 그리기
+                for p in self.players:
+                    p.draw(self.screen)
+
+                # 파티클 그리기
                 for p in self.particles:
                     p.draw(self.screen)
 
