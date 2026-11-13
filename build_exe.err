@@ -1,0 +1,25 @@
+336 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.10
+346 INFO: Python: 3.15.2
+389 INFO: Platform: Windows-11-10.0.26200-SP0
+393 INFO: Python environment: C:\Users\hyunsook\OneDrive\문서\gitProject\.venv
+400 INFO: Module search paths (PYTHONPATH):
+['C:\\Users\\hyunsook\\OneDrive\\문서\\gitProject',
+ 'C:\\Users\\hyunsook\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python315.zip',
+ 'C:\\Users\\hyunsook\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\DLLs',
+ 'C:\\Users\\hyunsook\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\Lib',
+ 'C:\\Users\\hyunsook\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none',
+ 'C:\\Users\\hyunsook\\OneDrive\\문서\\gitProject\\.venv',
+ 'C:\\Users\\hyunsook\\OneDrive\\문서\\gitProject\\.venv\\Lib\\site-packages',
+ 'C:\\Users\\hyunsook\\OneDrive\\문서\\gitProject']
+1055 INFO: Appending 'datas' from .spec
+1064 INFO: checking Analysis
+1064 INFO: Building Analysis because Analysis-00.toc is non existent
+1065 INFO: Looking for Python shared library...
+1065 INFO: Using Python shared library: C:\Users\hyunsook\AppData\Roaming\uv\python\cpython-3.15-windows-x86_64-none\python315.dll
+1065 INFO: Running Analysis Analysis-00.toc
+1065 INFO: Target bytecode optimization level: 0
+1065 INFO: Initializing module dependency graph...
+1069 INFO: Initializing module graph hook caches...
+1088 INFO: Analyzing modules for base_library.zip ...
+3135 INFO: Processing standard module hook 'hook-math.py' from 'C:\\Users\\hyunsook\\OneDrive\\문서\\gitProject\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+3281 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\Users\\hyunsook\\OneDrive\\문서\\gitProject\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'

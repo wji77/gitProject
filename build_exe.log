@@ -1,0 +1,26 @@
+Starting PyInstaller build with workpath=C:\Users\hyunsook\AppData\Local\Temp\pyi_soccer_build...
+394 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.10
+395 INFO: Python: 3.15.2
+440 INFO: Platform: Windows-11-10.0.26200-SP0
+440 INFO: Python environment: C:\Users\hyunsook\OneDrive\문서\gitProject\.venv
+446 INFO: Module search paths (PYTHONPATH):
+['C:\\Users\\hyunsook\\OneDrive\\문서\\gitProject',
+ 'C:\\Users\\hyunsook\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python315.zip',
+ 'C:\\Users\\hyunsook\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\DLLs',
+ 'C:\\Users\\hyunsook\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\Lib',
+ 'C:\\Users\\hyunsook\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none',
+ 'C:\\Users\\hyunsook\\OneDrive\\문서\\gitProject\\.venv',
+ 'C:\\Users\\hyunsook\\OneDrive\\문서\\gitProject\\.venv\\Lib\\site-packages',
+ 'C:\\Users\\hyunsook\\OneDrive\\문서\\gitProject']
+pygame-ce 2.5.8 (SDL 2.32.10, Python 3.15.2)
+1093 INFO: Appending 'datas' from .spec
+1094 INFO: checking Analysis
+1094 INFO: Building Analysis because Analysis-00.toc is non existent
+1094 INFO: Looking for Python shared library...
+1094 INFO: Using Python shared library: C:\Users\hyunsook\AppData\Roaming\uv\python\cpython-3.15-windows-x86_64-none\python315.dll
+1094 INFO: Running Analysis Analysis-00.toc
+1094 INFO: Target bytecode optimization level: 0
+1094 INFO: Initializing module dependency graph...
+1099 INFO: Initializing module graph hook caches...
+1117 INFO: Analyzing modules for base_library.zip ...
+^C

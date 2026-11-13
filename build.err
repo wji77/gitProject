@@ -1,0 +1,36 @@
+329 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.10
+342 INFO: Python: 3.15.2
+397 INFO: Platform: Windows-11-10.0.26200-SP0
+405 INFO: Python environment: C:\Users\hyunsook\OneDrive\문서\gitProject\.venv
+411 INFO: Removing temporary files and cleaning cache in C:\Users\hyunsook\AppData\Local\pyinstaller
+Traceback (most recent call last):
+  File "<frozen runpy>", line 201, in _run_module_as_main
+  File "<frozen runpy>", line 87, in _run_code
+  File "C:\Users\hyunsook\OneDrive\문서\gitProject\.venv\Scripts\pyinstaller.exe\__main__.py", line 10, in <module>
+    sys.exit(_console_script_run())
+             ~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\hyunsook\OneDrive\문서\gitProject\.venv\Lib\site-packages\PyInstaller\__main__.py", line 231, in _console_script_run
+    run()
+    ~~~^^
+  File "C:\Users\hyunsook\OneDrive\문서\gitProject\.venv\Lib\site-packages\PyInstaller\__main__.py", line 215, in run
+    run_build(pyi_config, spec_file, **vars(args))
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hyunsook\OneDrive\문서\gitProject\.venv\Lib\site-packages\PyInstaller\__main__.py", line 70, in run_build
+    PyInstaller.building.build_main.main(pyi_config, spec_file, **kwargs)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hyunsook\OneDrive\문서\gitProject\.venv\Lib\site-packages\PyInstaller\building\build_main.py", line 1275, in main
+    build(specfile, distpath, workpath, clean_build)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hyunsook\OneDrive\문서\gitProject\.venv\Lib\site-packages\PyInstaller\building\build_main.py", line 1168, in build
+    shutil.rmtree(f)
+    ~~~~~~~~~~~~~^^^
+  File "C:\Users\hyunsook\AppData\Roaming\uv\python\cpython-3.15-windows-x86_64-none\Lib\shutil.py", line 859, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hyunsook\AppData\Roaming\uv\python\cpython-3.15-windows-x86_64-none\Lib\shutil.py", line 711, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hyunsook\AppData\Roaming\uv\python\cpython-3.15-windows-x86_64-none\Lib\shutil.py", line 707, in _rmtree_unsafe
+    os.rmdir(path)
+    ~~~~~~~~^^^^^^
+PermissionError: [WinError 5] 액세스가 거부되었습니다: 'C:\\Users\\hyunsook\\OneDrive\\문서\\gitProject\\build\\soccer\\localpycs'
